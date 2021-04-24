@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/roman-mazur/design-practice-2-template/httptools"
-	"github.com/roman-mazur/design-practice-2-template/signal"
+	"github.com/OlegVanyaGreatBand/kpi-lab-2/httptools"
+	"github.com/OlegVanyaGreatBand/kpi-lab-2/signal"
 )
 
 var (
@@ -99,6 +99,7 @@ func main() {
 
 	frontend := httptools.CreateServer(*port, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		// TODO: Рееалізуйте свій алгоритм балансувальника.
+		log.Printf("Client IP: %s, hash: %d", r.RemoteAddr, 0)
 		forward(serversPool[0], rw, r)
 	}))
 
