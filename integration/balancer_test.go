@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const baseAddress = "http://balancer:8091"
+const baseAddress = "http://balancer:8090"
 
 var client = http.Client{
 	Timeout: 3 * time.Second,
