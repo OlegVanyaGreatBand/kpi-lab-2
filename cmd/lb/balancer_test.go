@@ -337,7 +337,7 @@ func (c HashTestCase) test(t *testing.T) {
 func TestHash(t *testing.T) {
 	for _, testCase := range []HashTestCase{
 		{
-			Ip:    "0.0.0.1",
+			Ip:    "0.0.0.0",
 			Error: false,
 			Hash:  0x0,
 		},
