@@ -20,4 +20,11 @@ go_tested_binary {
   testSrcs: ["./cmd/lb/*_test.go"]
 }
 
-// TODO: Додайте модуль для інтеграційних тестів.
+go_tested_binary {
+  name: "integration",
+  pkg: "github.com/OlegVanyaGreatBand/kpi-lab-2/cmd/client",
+  srcs: [ "cmd/client/*.go" ],
+  testPkg: "./integration/...",
+  testSrcs: ["./integration/*_test.go"],
+  optional: true
+}

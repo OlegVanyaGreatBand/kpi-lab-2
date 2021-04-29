@@ -111,7 +111,7 @@ func hash(ip string) (uint32, error) {
 	if len(octets) < 4 {
 		return 0, errors.New(fmt.Sprintf("invalid ip %s", ip))
 	}
-	for i, octet := range strings.Split(host, ".") {
+	for i, octet := range octets {
 		n, e := strconv.Atoi(octet)
 		if e != nil {
 			return 0, e
