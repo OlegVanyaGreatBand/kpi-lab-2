@@ -11,5 +11,7 @@ script:
 
 after_script:
   - mkdir reports
+  # extracting bood logs from all containers.
   - docker container ls -aq | xargs -I{} docker cp {}:/go/src/practice-2/out/reports reports/{}
+  # printing all extracted logs
   - find reports -type f -printf '\n>>> %p <<<\n' -exec cat {} \;
