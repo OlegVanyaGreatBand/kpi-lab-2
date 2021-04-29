@@ -33,14 +33,16 @@ var (
 	timeout = time.Duration(*timeoutSec) * time.Second
 	serversPool = []Server{
 		{
-			// default isHealthy = false. We won't redirect users till first health check
 			name: "server1:8080",
+			isHealthy: true,
 		},
 		{
 			name: "server2:8080",
+			isHealthy: true,
 		},
 		{
 			name: "server3:8080",
+			isHealthy: true,
 		},
 	}
 )
