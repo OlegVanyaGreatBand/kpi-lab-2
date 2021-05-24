@@ -3,6 +3,7 @@ package integration
 import (
 	"fmt"
 	"github.com/stretchr/testify/require"
+	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
@@ -17,7 +18,7 @@ var client = http.Client{
 func TestBalancer(t *testing.T) {
 	var servName string
 	for i := 0; i < 10; i++ {
-		url := fmt.Sprintf("%s/api/v1/some-data", baseAddress)
+		url := fmt.Sprintf("%s/api/v1/some-data?key=ovgb", baseAddress)
 		t.Log(fmt.Sprintf("Sending request to %s", url))
 		resp, err := client.Get(url)
 		if err != nil {
@@ -28,7 +29,13 @@ func TestBalancer(t *testing.T) {
 			t.Error(fmt.Sprintf("Response code: %d", resp.StatusCode))
 		}
 
+		body, _ := ioutil.ReadAll(resp.Body)
+		str := string(body)
+
+		require.NotEmpty(t, str)
+
 		t.Logf("response from [%s]", resp.Header.Get("lb-from"))
+		t.Logf("body: %s", str)
 		if i == 0 {
 			servName = resp.Header.Get("lb-from")
 		} else {
@@ -39,7 +46,7 @@ func TestBalancer(t *testing.T) {
 
 func BenchmarkBalancer(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		resp, err := client.Get(fmt.Sprintf("%s/api/v1/some-data", baseAddress))
+		resp, err := client.Get(fmt.Sprintf("%s/api/v1/some-data?key=ovgb", baseAddress))
 		if err != nil {
 			b.Error(err)
 		}

@@ -3,6 +3,7 @@ package datastore
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -110,7 +111,7 @@ func (db *Db) mergeLoop() {
 }
 
 func (db *Db) recover() error {
-	files, err := os.ReadDir(db.outPath)
+	files, err := ioutil.ReadDir(db.outPath)
 	if err != nil {
 		return err
 	}
