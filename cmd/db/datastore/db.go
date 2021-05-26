@@ -72,26 +72,24 @@ func (db *Db) loop() {
 		var err error
 		switch e.valueType {
 		case typeString:
+			db.Lock()
 			err = db.lastSegment().put(e.key, e.value.(string))
+			db.Unlock()
 		case typeClose:
 			return
 		}
 
-		db.Lock()
 		if err != nil {
-			db.Unlock()
 			e.result <- err
 			continue
 		}
 
 		if db.lastSegment().offset >= db.maxSegSize {
 			err := db.newSegment()
-			db.Unlock()
 			e.result <- err
 			continue
 		}
 
-		db.Unlock()
 		e.result <- nil
 	}
 }
@@ -237,7 +235,9 @@ func (db *Db) newSegment() error {
 		return err
 	}
 
+	db.Lock()
 	db.segments = append(db.segments, seg)
+	db.Unlock()
 
 	if len(db.segments) > 2 && autoMerge {
 		go func() {
@@ -249,7 +249,6 @@ func (db *Db) newSegment() error {
 }
 
 func (db *Db) merge() error {
-	backup := db.segments
 	segments := db.segments[:len(db.segments) - 1]
 
 	table := make(map[string]int64)
@@ -296,6 +295,7 @@ func (db *Db) merge() error {
 	// should be synchronized and changed with great awareness.
 	db.Lock()
 	// Protection from erasing new segments that was created while merge was in progress
+	backup := db.segments
 	newSegments := append([]*segment{seg}, db.segments[len(segments):]...)
 	db.segments = newSegments
 
@@ -309,8 +309,7 @@ func (db *Db) merge() error {
 
 	f, err = os.OpenFile(segments[0].path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o600)
 	if err != nil {
-		db.segments = backup
-		os.Remove(path)
+		db.recover()
 		db.Unlock()
 		return err
 	}

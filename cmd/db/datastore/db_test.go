@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -176,50 +177,56 @@ func TestDb_Put(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Can't open db: %s", err)
 		}
-		pairs := [][]string {
-			{"key1", "value1"},
-			{"key2", "value2"},
-			{"key3", "value3"},
-			{"key4", "value4"},
-			{"key5", "value5"},
-			{"key6", "value6"},
-			{"key7", "value7"},
-			{"key8", "value8"},
-			{"key9", "value9"},
-			{"key10", "value10"},
-		}
 
-		ch := make(chan interface{})
-
-		for _, pair := range pairs {
-			pair := pair
-			go func() {
-				err := db.Put(pair[0], pair[1])
-				if err != nil {
-					t.Errorf("Cannot put %s: %s", pairs[0], err)
-				}
-				value, err := db.Get(pair[0])
-				if err != nil {
-					t.Errorf("Cannot get %s: %s", pairs[0], err)
-				}
-				if value != pair[1] {
-					t.Errorf("Bad value returned expected %s, got %s", pair[1], value)
-				}
-				ch <- 1
-			}()
-		}
-
-		for range pairs {
-			<-ch
-		}
-
-		for _, pair := range pairs {
-			value, err := db.Get(pair[0])
-			if err != nil {
-				t.Errorf("Cannot get %s: %s", pairs[0], err)
+		for i := 0; i < 100; i++ {
+			pairs := map[string]int {
+				"key1": 1,
+				"key2": 2,
+				"key3": 3,
+				"key4": 4,
+				"key5": 5,
+				"key6": 6,
+				"key7": 7,
+				"key8": 8,
+				"key9": 9,
+				"key10": 10,
 			}
-			if value != pair[1] {
-				t.Errorf("Bad value returned expected %s, got %s", pair[1], value)
+
+			ch := make(chan interface{})
+
+			for k, v := range pairs {
+				k := k
+				v := v
+				go func() {
+					for i := 1; i <= 10; i++ {
+						err := db.Put(k, strconv.Itoa(v + i))
+						if err != nil {
+							t.Errorf("Cannot put %s: %s", k, err)
+						}
+						value, err := db.Get(k)
+						if err != nil {
+							t.Errorf("Cannot get %s: %s", k, err)
+						}
+						if value != strconv.Itoa(v + i) {
+							t.Errorf("Bad value returned expected %d, got %s", v + i, value)
+						}
+					}
+					ch <- 1
+				}()
+			}
+
+			for range pairs {
+				<-ch
+			}
+
+			for k, v := range pairs {
+				value, err := db.Get(k)
+				if err != nil {
+					t.Errorf("Cannot get %s: %s", k, err)
+				}
+				if value != strconv.Itoa(v + 10) {
+					t.Errorf("Bad value returned expected %d, got %s", v + 10, value)
+				}
 			}
 		}
 
