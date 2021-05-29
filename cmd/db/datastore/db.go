@@ -17,6 +17,7 @@ var autoMerge = true
 
 const (
 	typeString = iota
+	typeInt64 = iota
 	typeClose = iota
 )
 
@@ -74,6 +75,10 @@ func (db *Db) loop() {
 		case typeString:
 			db.Lock()
 			err = db.lastSegment().put(e.key, e.value.(string))
+			db.Unlock()
+		case typeInt64:
+			db.Lock()
+			err = db.lastSegment().putInt64(e.key, e.value.(int64))
 			db.Unlock()
 		case typeClose:
 			return
@@ -199,10 +204,27 @@ func (db *Db) Get(key string) (string, error) {
 		v, err := db.segments[i].get(key)
 		if err == nil {
 			return v, nil
+		} else if err == ErrWrongType {
+			return "", err
 		}
 	}
 
 	return "", ErrNotFound
+}
+
+func (db *Db) GetInt64(key string) (int64, error) {
+	db.RLock()
+	defer db.RUnlock()
+	for i := len(db.segments) - 1; i >= 0; i-- {
+		v, err := db.segments[i].getInt64(key)
+		if err == nil {
+			return v, nil
+		} else if err == ErrWrongType {
+			return 0, err
+		}
+	}
+
+	return 0, ErrNotFound
 }
 
 func (db *Db) lastSegment() *segment {
@@ -216,6 +238,19 @@ func (db *Db) Put(key, value string) error {
 		value:  value,
 		result: make(chan error),
 		valueType: typeString,
+	}
+
+	db.writeQueue <- req
+
+	return <- req.result
+}
+
+func (db *Db) PutInt64(key string, value int64) error {
+	req := writeRequest{
+		key:    key,
+		value:  value,
+		result: make(chan error),
+		valueType: typeInt64,
 	}
 
 	db.writeQueue <- req
@@ -273,7 +308,25 @@ func (db *Db) merge() error {
 			}
 
 			v, err := s.get(k)
-			if err != nil {
+			if err == ErrWrongType {
+				n, err := s.getInt64(k)
+				if err != nil {
+					seg.close()
+					os.Remove(path)
+					return err
+				}
+
+				table[k] = 1
+
+				err = seg.putInt64(k, n)
+				if err != nil {
+					seg.close()
+					os.Remove(path)
+					return err
+				}
+
+				continue
+			} else if err != nil {
 				seg.close()
 				os.Remove(path)
 				return err

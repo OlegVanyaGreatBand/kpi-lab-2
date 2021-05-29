@@ -122,17 +122,15 @@ func TestDb_Put(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		for _, pair := range pairs {
+		for i, pair := range pairs {
 			err := db.Put(pair[0], pair[1])
 			if err != nil {
-				t.Errorf("Cannot put %s: %s", pairs[0], err)
+				t.Fatalf("Cannot put %s: %s", pairs[0], err)
 			}
-			value, err := db.Get(pair[0])
+
+			err = db.PutInt64(string(rune(i)), int64(i))
 			if err != nil {
-				t.Errorf("Cannot get %s: %s", pairs[0], err)
-			}
-			if value != pair[1] {
-				t.Errorf("Bad value returned expected %s, got %s", pair[1], value)
+				t.Fatalf("Cannot put %s: %s", pairs[0], err)
 			}
 		}
 
@@ -144,19 +142,29 @@ func TestDb_Put(t *testing.T) {
 			t.Errorf("Cannot read segment file: %s", err)
 		}
 		if _, err = os.Open(filepath.Join(dir, segFileName + "1")); err == nil {
-			t.Errorf("Segment was not merged: %s", err)
+			t.Errorf("Segment-1 was not merged: %s", err)
 		}
-		if _, err = os.Open(filepath.Join(dir, segFileName + "2")); err != nil {
+		if _, err = os.Open(filepath.Join(dir, segFileName + "2")); err == nil {
+			t.Errorf("Segment-2 was not merged: %s", err)
+		}
+		if _, err = os.Open(filepath.Join(dir, segFileName + "3")); err != nil {
 			t.Errorf("Cannot read segment file: %s", err)
 		}
 
-		for _, pair := range pairs {
+		for i, pair := range pairs {
 			value, err := db.Get(pair[0])
 			if err != nil {
 				t.Errorf("Cannot get %s: %s", pairs[0], err)
 			}
 			if value != pair[1] {
 				t.Errorf("Bad value returned expected %s, got %s", pair[1], value)
+			}
+			num, err := db.GetInt64(string(rune(i)))
+			if err != nil {
+				t.Errorf("Cannot get %d: %s", i, err)
+			}
+			if num != int64(i) {
+				t.Errorf("Bad value returned expected %d, got %d", i, num)
 			}
 		}
 	})
@@ -199,16 +207,30 @@ func TestDb_Put(t *testing.T) {
 				v := v
 				go func() {
 					for i := 1; i <= 10; i++ {
-						err := db.Put(k, strconv.Itoa(v + i))
-						if err != nil {
-							t.Errorf("Cannot put %s: %s", k, err)
-						}
-						value, err := db.Get(k)
-						if err != nil {
-							t.Errorf("Cannot get %s: %s", k, err)
-						}
-						if value != strconv.Itoa(v + i) {
-							t.Errorf("Bad value returned expected %d, got %s", v + i, value)
+						if i % 2 == 0 {
+							err := db.Put(k, strconv.Itoa(v + i))
+							if err != nil {
+								t.Errorf("Cannot put %s: %s", k, err)
+							}
+							value, err := db.Get(k)
+							if err != nil {
+								t.Errorf("Cannot get %s: %s", k, err)
+							}
+							if value != strconv.Itoa(v + i) {
+								t.Errorf("Bad value returned expected %d, got %s", v + i, value)
+							}
+						} else {
+							err := db.PutInt64(k, int64(v+i))
+							if err != nil {
+								t.Errorf("Cannot put %s: %s", k, err)
+							}
+							value, err := db.GetInt64(k)
+							if err != nil {
+								t.Errorf("Cannot get %s: %s", k, err)
+							}
+							if value != int64(v+i) {
+								t.Errorf("Bad value returned expected %d, got %d", v + i, value)
+							}
 						}
 					}
 					ch <- 1
@@ -227,6 +249,45 @@ func TestDb_Put(t *testing.T) {
 				if value != strconv.Itoa(v + 10) {
 					t.Errorf("Bad value returned expected %d, got %s", v + 10, value)
 				}
+			}
+		}
+
+		err = db.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("put/get int64", func(t *testing.T) {
+		newDir, err := ioutil.TempDir("", "test-db")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.RemoveAll(newDir)
+
+		autoMerge = false
+		db, err := NewDb(newDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		pairs := map[string]int64 {
+			"key1": 10,
+			"key2": 1209,
+			"key3": -10,
+			"key4": 0,
+		}
+		for k, v := range pairs {
+			err := db.PutInt64(k, v)
+			if err != nil {
+				t.Errorf("Cannot put %s: %s", k, err)
+			}
+			value, err := db.GetInt64(k)
+			if err != nil {
+				t.Errorf("Cannot get %s: %s", k, err)
+			}
+			if value != v {
+				t.Errorf("Bad value returned expected %d, got %d", v, value)
 			}
 		}
 
