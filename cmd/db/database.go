@@ -6,6 +6,7 @@ import (
 	"github.com/OlegVanyaGreatBand/kpi-lab-2/cmd/db/datastore"
 	"github.com/OlegVanyaGreatBand/kpi-lab-2/httptools"
 	"github.com/OlegVanyaGreatBand/kpi-lab-2/signal"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
@@ -36,12 +37,34 @@ func main() {
 				log.Printf("Failed to get %s: %s", k, err)
 				if err == datastore.ErrNotFound {
 					rw.WriteHeader(http.StatusNotFound)
+				} else if err == datastore.ErrWrongType {
+					v, err := db.GetInt64(k)
+					if err != nil {
+						log.Printf("Failed to load %s: %s", k, err)
+						rw.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+
+					log.Printf("Got %s as int64", k)
+					res := struct {
+						Key string `json:"key"`
+						Value int64 `json:"value"`
+					}{
+						Key: k,
+						Value: v,
+					}
+					rw.WriteHeader(http.StatusOK)
+					if err := encoder.Encode(res); err != nil {
+						log.Printf("Failed to write response %d: %s", v, err)
+					}
+					return
 				} else {
 					rw.WriteHeader(http.StatusInternalServerError)
 				}
 				return
 			}
 
+			log.Printf("Got %s as string", k)
 			res := struct {
 				Key string `json:"key"`
 				Value string `json:"value"`
@@ -55,18 +78,47 @@ func main() {
 			}
 		} else if r.Method == http.MethodPost {
 			log.Printf("POST request for %s", k)
-			stringValue := struct {
-				Value string `json:"value"`
-			}{}
-			if err := json.NewDecoder(r.Body).Decode(&stringValue); err != nil {
+
+			bytes, err := ioutil.ReadAll(r.Body)
+			if err != nil {
 				log.Printf("Error decoding input: %s", err)
 				rw.WriteHeader(http.StatusBadRequest)
 				return
 			}
 
-			if err := db.Put(k, stringValue.Value); err != nil {
+			var jsonFields map[string]*json.RawMessage
+			err = json.Unmarshal(bytes, &jsonFields)
+			if err != nil {
+				log.Printf("Error decoding input: %s", err)
+				rw.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			var int64Value int64
+			err = json.Unmarshal(*jsonFields["value"], &int64Value)
+			if err != nil {
+				var stringValue string
+				err = json.Unmarshal(*jsonFields["value"], &stringValue)
+				if err != nil {
+					log.Printf("Error decoding input: %s", err)
+					rw.WriteHeader(http.StatusBadRequest)
+					return
+				}
+
+				log.Printf("Decoded string: %s", stringValue)
+				if err := db.Put(k, stringValue); err != nil {
+					rw.WriteHeader(http.StatusInternalServerError)
+					log.Printf("Failed to set %s -> \"%s\": %s", k, stringValue, err)
+					return
+				}
+				rw.WriteHeader(http.StatusOK)
+				return
+			}
+
+			log.Printf("Decoded int64: %d", int64Value)
+			if err := db.PutInt64(k, int64Value); err != nil {
 				rw.WriteHeader(http.StatusInternalServerError)
-				log.Printf("Failed to set %s: %s", k, err)
+				log.Printf("Failed to set %s -> %d: %s", k, int64Value, err)
 				return
 			}
 

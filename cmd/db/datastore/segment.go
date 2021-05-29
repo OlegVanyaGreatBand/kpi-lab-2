@@ -76,7 +76,24 @@ func (s *segment) close() error {
 func (s *segment) put(key, value string) error {
 	e := entry{
 		key:   key,
-		value: value,
+		value: []byte(value),
+		valueType: typeString,
+	}
+	n, err := s.file.Write(e.Encode())
+	if err == nil {
+		s.index[key] = s.offset
+		s.offset += int64(n)
+	}
+	return err
+}
+
+func (s *segment) putInt64(key string, value int64) error {
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, uint64(value))
+	e := entry{
+		key:   key,
+		value: b,
+		valueType: typeInt64,
 	}
 	n, err := s.file.Write(e.Encode())
 	if err == nil {
@@ -104,9 +121,35 @@ func (s *segment) get(key string) (string, error) {
 	}
 
 	reader := bufio.NewReader(file)
-	value, err := readValue(reader)
+	value, err := readStringValue(reader)
 	if err != nil {
-		return "", nil
+		return "", err
+	}
+
+	return value, nil
+}
+
+func (s *segment) getInt64(key string) (int64, error) {
+	position, ok := s.index[key]
+	if !ok {
+		return 0, ErrNotFound
+	}
+
+	file, err := os.Open(s.path)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	_, err = file.Seek(position, 0)
+	if err != nil {
+		return 0, err
+	}
+
+	reader := bufio.NewReader(file)
+	value, err := readInt64Value(reader)
+	if err != nil {
+		return 0, err
 	}
 
 	return value, nil
